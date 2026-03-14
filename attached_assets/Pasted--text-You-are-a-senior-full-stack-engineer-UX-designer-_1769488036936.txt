@@ -1,0 +1,208 @@
+```text
+You are a senior full-stack engineer + UX designer. Build a production-ready, mobile-first property management website + platform from scratch.
+
+PROJECT NAME
+ATID Property Management Platform (minimal)
+
+PRIMARY GOAL
+Rebuild the property management website + portal with excellent UX, SEO, and secure backend—ONLY the features listed below. Do not add extra pages or features.
+
+TECH STACK (REQUIRED)
+- Next.js 14+ (App Router) + TypeScript
+- TailwindCSS
+- shadcn/ui component library
+- React Hook Form + Zod validation
+- PostgreSQL (use Neon/Supabase/Render Postgres; assume DATABASE_URL env exists)
+- Prisma ORM + migrations
+- Auth.js (NextAuth) with Credentials provider (email/password)
+- Stripe for payments (ACH + Card) using Stripe Payment Intent / Checkout (your choice)
+- File uploads to S3 compatible storage (AWS S3 or Cloudflare R2) via signed URLs
+- Email via Resend (or Nodemailer SMTP) for confirmations (ticket + payment receipt + application confirmation)
+- Rate limit + basic anti-spam protection on public forms (simple IP rate limit in middleware + honeypot)
+
+DELIVERABLES
+- Working app with:
+  - Public site pages: /, /maintenance, /pay, /apply, /login
+  - Tenant portal: /portal (dashboard), /portal/payments, /portal/maintenance, /portal/applications
+  - Admin portal: /admin (dashboard), /admin/properties, /admin/tenants, /admin/files, /admin/users
+- Prisma schema implementing all required entities (see below)
+- Seed script that creates an ADMIN user and a demo property, unit, tenant
+- README with setup steps (env vars, migrate, seed, run)
+- Clean UI with consistent layout, proper empty states, validation errors, loading states
+
+STRICT SCOPE
+Do NOT add: blog, contact page, marketing pages, owner portal, chat, SMS, analytics dashboards beyond required, or anything else.
+
+BRANDING
+- I will upload a logo image. Use it in the header and login screen.
+- Extract a simple palette from the logo: primary, neutral, accent.
+- Use modern minimal styling: lots of whitespace, clear hierarchy, big CTAs, great mobile UI.
+
+INFORMATION ARCHITECTURE (MUST MATCH)
+
+PUBLIC WEBSITE
+1) Home `/`
+- Header: Logo + phone + email + buttons: Pay Rent, Request Maintenance, Apply, Login
+- Hero section
+- Property ID Search (single input)
+  - Enter propertyId -> show result page /property/[propertyId] with limited public info and CTAs:
+    - Apply, Pay Rent, Request Maintenance, Login
+- Three CTA tiles: Pay Rent, Maintenance, Rental Application
+- Footer with phone/email
+
+2) Maintenance & Repair `/maintenance`
+Public form fields:
+- name
+- propertyAddress
+- unit (optional)
+- phone
+- email
+- issueDescription
+- photo uploads (multiple)
+- consent checkbox (entry permission / pets)
+Features:
+- Emergency notice at top
+- On submit: create MaintenanceRequest (status=submitted) + store file attachments
+- Show confirmation with ticket number
+- Send confirmation email with ticket number
+
+3) Payments `/pay`
+- Payment options: ACH (Stripe), Card (Stripe), Zelle (instructions only)
+- Require Property ID before payment
+- If not logged in: allow payment with propertyId + email (and match to tenant if possible)
+- Stripe success webhook -> create Payment record + email receipt
+- Confirmation screen
+
+4) Rental Applications `/apply`
+Multi-step wizard:
+- Applicant Info
+- Employment/Income
+- Rental History
+- References
+- Uploads
+- Review & Submit
+Rules:
+- Autosave draft (Application.status=draft)
+- On submit: status=submitted, store uploads
+- Confirmation screen + email confirmation
+- Applicant account is created (User role=TENANT or APPLICANT) so they can log in and track status
+
+5) Login `/login`
+- Email + password + Forgot password
+- Used by tenants + internal staff
+
+TENANT PORTAL `/portal`
+- Dashboard: current balance (simple: last successful payment + lease rentAmount), next due date, buttons Pay Rent / Maintenance
+- Payments: pay now, history, receipts
+- Maintenance: new request (autofill from tenant profile), list tickets, ticket detail with message thread + upload more photos
+- Applications: view status + upload missing docs
+
+INTERNAL ADMIN `/admin`
+- Dashboard: new maintenance count, rent due/overdue counts (simple computed), recent uploads list
+- Properties: list + detail (units, linked tenants, leases, files, maintenance tickets)
+- Tenants: list + detail (contact, property/unit, lease, payments, maintenance, files)
+- Leases & Files: central file manager with tagging, secure download
+- Users: add user, disable user, assign roles: ADMIN, MANAGER, MAINTENANCE, ACCOUNTING, READ_ONLY
+
+AUTHORIZATION RULES
+- Tenants can only access their own data
+- Staff access depends on role
+- Only ADMIN can manage Users
+- MANAGER can manage properties/tenants/files
+- MAINTENANCE can view/update maintenance requests only
+- ACCOUNTING can view payments only
+- READ_ONLY can view everything but cannot edit
+
+REQUIRED DATABASE MODELS (PRISMA)
+Implement these tables (names can vary but relationships must exist):
+- User {id, name, email, phone, passwordHash, role, status, createdAt}
+- Property {id, propertyCode (public propertyId), address, city, state, zip, type, status, createdAt}
+- Unit {id, propertyId FK, unitLabel, status}
+- Tenant {id, userId FK, propertyId FK, unitId FK, status, moveInDate, moveOutDate}
+- Lease {id, tenantId FK, propertyId FK, unitId FK, startDate, endDate, rentAmount, status, leaseFileId FK nullable}
+- File {id, ownerType, ownerId, filename, mimeType, size, storageKey, tags[], uploadedByUserId FK, createdAt}
+- MaintenanceRequest {id, tenantId nullable, propertyId FK, unitId nullable, publicTicketNumber, category optional, description, status, priority, createdAt, updatedAt}
+- MaintenanceMessage {id, requestId FK, senderType, senderUserId nullable, message, createdAt}
+- MaintenanceAttachment {id, requestId FK, fileId FK}
+- Application {id, applicantUserId FK, propertyId nullable, unitId nullable, status, applicationData JSONB, submittedAt nullable, createdAt, updatedAt}
+- Payment {id, tenantId nullable, propertyId nullable, amount, method, status, stripePaymentIntentId nullable, paidAt nullable, receiptUrl nullable, createdAt}
+
+Also add an AuditLog table (minimal) recommended:
+- AuditLog {id, actorUserId nullable, action, entityType, entityId, metadata JSONB, createdAt}
+
+FILE UPLOAD REQUIREMENTS
+- Use signed URL upload flow:
+  1) client requests signed URL
+  2) upload directly to S3/R2
+  3) server creates File record pointing to storageKey
+- Downloads should be signed URLs, not public.
+
+PAYMENTS REQUIREMENTS
+- Use Stripe with server-side creation
+- Create a /api/stripe/webhook endpoint
+- On successful payment event:
+  - create Payment record
+  - email receipt
+
+SEO + AI OPTIMIZATION
+- SSR for public pages
+- Correct metadata (title/description)
+- Semantic headings and structured sections
+- Add /sitemap.xml and /robots.txt
+- Add basic JSON-LD Organization schema on home page
+- Keep content concise and factual for AI readability
+
+SECURITY
+- Password hashing with bcrypt
+- Middleware role checks for /portal and /admin routes
+- Rate limit public POST endpoints
+- Validate inputs with Zod
+- Store secrets in env vars only
+
+ENV VARS (DOCUMENT IN README)
+DATABASE_URL
+NEXTAUTH_SECRET
+NEXTAUTH_URL
+STRIPE_SECRET_KEY
+STRIPE_WEBHOOK_SECRET
+S3_ENDPOINT (if R2)
+S3_REGION
+S3_ACCESS_KEY_ID
+S3_SECRET_ACCESS_KEY
+S3_BUCKET
+RESEND_API_KEY (or SMTP vars)
+PUBLIC_PHONE
+PUBLIC_EMAIL
+
+IMPLEMENTATION CHECKLIST (DO THIS)
+1) Initialize Next.js + Tailwind + shadcn
+2) Create Prisma schema + migrate
+3) Auth.js setup + role middleware
+4) Build public pages
+5) Implement propertyId lookup route /property/[propertyCode]
+6) Implement maintenance request flow + uploads + email
+7) Implement apply wizard + autosave + uploads + email
+8) Implement payments + Stripe + webhook + receipts
+9) Build tenant portal pages
+10) Build admin portal pages with CRUD (minimal forms, data tables)
+11) Add seed script and README
+
+UX REQUIREMENTS
+- Beautiful minimal layout
+- Sticky header on mobile
+- Primary CTA buttons are prominent
+- Forms have:
+  - stepper (for application)
+  - inline validation errors
+  - loading states
+  - success states
+- Tables have:
+  - search
+  - empty states
+  - pagination (basic)
+
+OUTPUT
+Generate the complete codebase structure with all files necessary to run. Prioritize correctness and production readiness. Keep everything within a single monorepo. Provide clear instructions for running migrations, seeding, and starting dev server.
+
+Build it now.
+```

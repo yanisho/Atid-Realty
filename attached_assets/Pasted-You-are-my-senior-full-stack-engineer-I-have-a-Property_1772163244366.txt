@@ -1,0 +1,53 @@
+You are my senior full-stack engineer. I have a Property Manager web app in this Replit project. The payment function is already built in the app, but it is not connected to Stripe yet. I need to accept BOTH credit card payments and ACH bank payments using Stripe.
+
+Goal:
+1) Connect my Stripe account to the existing payment flow.
+2) Implement a secure backend integration using Stripe (no secret keys on the client).
+3) Support two payment methods:
+- Card (Stripe Payment Element / card)
+- ACH (Stripe US bank account via Financial Connections, i.e., PaymentIntent + us_bank_account)
+4) Ensure the system is production-ready with webhooks, idempotency, and environment variables.
+
+First: Inspect this repo and identify:
+- Where the current “payment function” is implemented (files, routes, services).
+- Where the frontend triggers payment and where backend should create intents.
+Then implement Stripe in the correct places while changing as little of the existing code as possible.
+
+Requirements:
+- Use env vars:
+STRIPE_SECRET_KEY
+STRIPE_PUBLISHABLE_KEY
+STRIPE_WEBHOOK_SECRET
+APP_URL (for redirects)
+- Create/confirm payments server-side:
+- For card: create a PaymentIntent with amount, currency, metadata (tenantId, propertyId, invoiceId, etc.)
+- For ACH: create a PaymentIntent with payment_method_types: ['us_bank_account'] and enable Financial Connections if needed.
+- Use Stripe’s Payment Element (recommended) so the UI can handle both card + bank, OR provide two separate flows if the app’s structure requires it. Pick the simplest approach that fits the current code.
+- Add a webhook endpoint:
+- Verify signature with STRIPE_WEBHOOK_SECRET
+- Handle events: payment_intent.succeeded, payment_intent.payment_failed, payment_intent.processing, charge.refunded (or refund events), and setup_intent events if used.
+- Update my database records accordingly (invoice/payment status, receipt URL, Stripe IDs).
+- Add idempotency keys when creating PaymentIntents to prevent double charges on retries.
+- Amount handling:
+- Always pass integer cents to Stripe for USD (amount = dollars * 100).
+- Validate inputs server-side (invoice exists, user authorized, amount matches invoice).
+- Security:
+- Do NOT expose STRIPE_SECRET_KEY anywhere client-side.
+- Auth-protect payment creation endpoints.
+- Testing:
+- Add a README section with exact steps:
+- how to set env vars in Replit
+- how to run locally
+- how to use Stripe CLI to forward webhooks
+- test card numbers and ACH test flow
+- Output:
+1) A list of files changed/added
+2) The exact new endpoints/routes and how the frontend calls them
+3) Any DB migrations/fields needed (stripeCustomerId, stripePaymentIntentId, paymentStatus, etc.)
+4) A quick “smoke test” checklist
+
+Implementation notes:
+- If users are recurring payers, create a Stripe Customer per user and store stripeCustomerId.
+- For ACH, allow longer settlement time and set status to “processing” until succeeded.
+- If the app is Node/Express, use stripe npm package. If Python/FastAPI, use stripe python package. Use whatever the repo already uses.
+Proceed now: scan the codebase, choose the correct Stripe approach, implement, and explain the changes clearly.
